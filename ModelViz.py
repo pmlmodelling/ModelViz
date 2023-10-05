@@ -19,8 +19,9 @@ class ModelViz:
         self.time_var = 'time_counter'
         self.x_strip = slice(10,-10)
         self.y_strip = slice(10,-10)
+        self.n_clusters = 6
         self.norm = True
-        self.seed = 163
+        self.seed = 950
     
     def load_data(self, file_path):
         self.ds = xr.open_dataset(file_path).squeeze(dim=['deptht']).drop_dims('axis_nbounds', errors='ignore')
@@ -72,6 +73,7 @@ class ModelViz:
     def train(self, tsds=None, n_clusters=6, verbose=True, save=True, file_path='model.ks'):
         if tsds is None:
             tsds = self.tsds
+        self.n_clusters = n_clusters
         self.model = ts.clustering.KShape(n_clusters=n_clusters,
                                        verbose=verbose,
                                        random_state=self.seed,
@@ -110,7 +112,7 @@ class ModelViz:
         for v,var in enumerate(self.cluster_vars):
             print('Processing '+var)
             self.cluster_ds['IQR'][v] = self.ds[var].quantile([0.75,0.25]).diff('quantile').values[0]
-            for x in tqdm.tqdm(np.arange(6)):
+            for x in tqdm.tqdm(np.arange(self.n_clusters)):
                 self.cluster_ds['class_TS'][v,x,:] = self.ds[var].where((w==x)).mean(['x','y'])
                 self.cluster_ds['class_TS_std'][v,x,:] = self.ds[var].where((w==x)).std(['x','y'])
         if save:
