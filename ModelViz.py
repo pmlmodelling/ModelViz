@@ -22,6 +22,7 @@ class ModelViz:
         self.n_clusters = 6
         self.norm = True
         self.seed = 950
+        self.n_init = 3
     
     def load_data(self, file_path):
         self.ds = xr.open_dataset(file_path).squeeze(dim=['deptht']).drop_dims('axis_nbounds', errors='ignore')
@@ -77,6 +78,7 @@ class ModelViz:
         self.model = ts.clustering.KShape(n_clusters=n_clusters,
                                        verbose=verbose,
                                        random_state=self.seed,
+                                       n_init = self.n_init
                                       )
         self.model.fit(tsds)
         if save:
