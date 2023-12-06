@@ -13,6 +13,7 @@ import tslearn as ts
 import tslearn.clustering
 import glob
 from sklearn.cluster import KMeans
+import matplotlib.gridspec as gridspec
 
 class ModelViz:
     def __init__(self):
@@ -40,7 +41,7 @@ class ModelViz:
         self.grd = xr.open_dataset(file_path).squeeze(dim=['t']).isel(x=self.x_strip,y=self.y_strip)
         self.dim_x = self.grd.x
         self.dim_y = self.grd.y
-        self.mask = xr.where(self.grd.bottom_level>0,1,0).stack(Npts=('x','y'))
+        self.mask = xr.where(self.grd.bottom_level>0,1,0) #.stack(Npts=('x','y'))
         
     def save_data(self, file_path):
         self.ds.to_netcdf(file_path)        
@@ -64,6 +65,7 @@ class ModelViz:
             self.ds = self.ds.rename({self.time_var:'time'})
         else:
             self.ds = self.ds.expand_dims(dim = {"time":np.asarray([1])})
+        self.ds = self.ds.where(self.mask==1,drop=True)
         if self.norm == 'magnitude':
             # Global normalisation by magnitude of variable for all data
             self.norm_factor = {}
@@ -76,7 +78,8 @@ class ModelViz:
                 self.ds[v] = (self.ds[v]-self.ds[v].mean())/self.ds[v].std()
 
     def make_tsds(self, save=False, file_path='dataset.csv'):
-        ds_stack = self.ds.stack(Npts=('x','y')).where(self.mask==1,drop=True)
+        # not sure why I currently need to mask again here?
+        ds_stack = self.ds.stack(Npts=('x','y')).where(self.mask.stack(Npts=('x','y'))==1,drop=True)
         self.index = ds_stack.Npts
         ds_stack = ds_stack.to_stacked_array('z', sample_dims=['Npts'])
         self.tsds = pd.DataFrame(ds_stack.variable, index=self.index, columns=ds_stack.time)
@@ -192,10 +195,10 @@ class ModelViz:
         self.line_colors = [p['color'] for p in plt.rcParams['axes.prop_cycle']]
         self.cmap = plt.get_cmap('Set3')
         self.cmap_discrete = self.cmap(np.linspace(0,1,self.model.n_clusters))
-        
+        gs = gridspec.GridSpec(self.model.n_clusters, 1)
+        f = plt.figure(figsize=(8,3*self.model.n_clusters))
         for i in range(self.model.n_clusters):
-            f = plt.figure(figsize=(8,3))
-            ax = plt.axes()
+            ax = f.add_subplot(gs[i])
             for v,var in enumerate(plot_vars):
                 scale = self.norm_factor[var] if rescale else 1
                 xbar = scale*self.cluster_ds.class_TS.sel(var=var,vclass=i)
@@ -210,7 +213,7 @@ class ModelViz:
             ymin,ymax = plt.gca().get_ylim()
             ydiff = ymax-ymin
             ax.add_patch(mpl.patches.Rectangle((xmin+0.01*xdiff,ymin+0.82*ydiff),0.05*xdiff,0.15*ydiff,facecolor=self.cmap_discrete[i]))    
-            if savefig is not None:
-                p = pathlib.Path(file_path)
-                plt.savefig(p.with_stem(f"{p.stem}_{i}"))  
+        if savefig is not None:
+            p = pathlib.Path(file_path)
+            plt.savefig(p.with_stem(f"{p.stem}"))  
     
