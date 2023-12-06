@@ -26,12 +26,16 @@ class ModelViz:
         self.n_init = 3
     
     def load_data(self, file_path):
-        self.ds = xr.open_dataset(file_path).squeeze(dim=['deptht']).drop_dims('axis_nbounds', errors='ignore')
+        self.ds = xr.open_dataset(file_path).drop_dims('axis_nbounds', errors='ignore')
+        if 'deptht' in train.ds.dims == True:
+            self.ds = self.ds.squeeze(dim=['deptht'])
         
     def load_mfdata(self, file_glob):
         files = glob.glob(file_glob)
-        self.ds = xr.open_mfdataset(files).squeeze(dim=['deptht']).drop_dims('axis_nbounds', errors='ignore')
-        
+        self.ds = xr.open_mfdataset(files).drop_dims('axis_nbounds', errors='ignore')
+        if 'deptht' in train.ds.dims == True:
+            self.ds = self.ds.squeeze(dim=['deptht'])
+
     def load_grid(self, file_path):
         self.grd = xr.open_dataset(file_path).squeeze(dim=['t']).isel(x=self.x_strip,y=self.y_strip)
         self.dim_x = self.grd.x
