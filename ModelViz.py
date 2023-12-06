@@ -21,7 +21,7 @@ class ModelViz:
         self.x_strip = slice(10,-10)
         self.y_strip = slice(10,-10)
         self.n_clusters = 6
-        self.norm = True
+        self.norm = 'magnitude' # other options None and stdev
         self.seed = 950
         self.n_init = 3
     
@@ -62,13 +62,13 @@ class ModelViz:
             self.ds = self.ds.isel(x=self.x_strip, y=self.y_strip)
         if self.time_var in trains.ds.dims:
             self.ds = self.ds.rename({self.time_var:'time'})
-        if self.norm:
+        if self.norm == 'magnitude':
             # Global normalisation by magnitude of variable for all data
             self.norm_factor = {}
             for v in self.cluster_vars:
                 self.norm_factor[v] = np.sqrt((self.ds[v]*self.ds[v]).sum())
                 self.ds[v] /= self.norm_factor[v]
-        if self.norm:
+        if self.norm == 'stdev':
             # Global normalisation by magnitude and variability for point data
             self.norm_factor = {}
             for v in self.cluster_vars:
