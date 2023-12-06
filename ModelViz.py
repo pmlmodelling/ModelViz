@@ -12,6 +12,7 @@ import pathlib
 import tslearn as ts
 import tslearn.clustering
 import glob
+from sklearn.cluster import KMeans
 
 class ModelViz:
     def __init__(self):
@@ -71,15 +72,19 @@ class ModelViz:
         self.tsds = pd.read_csv(file_path)
         self.index = self.tsds.index
     
-    def train(self, tsds=None, n_clusters=6, verbose=True, save=True, file_path='model.ks'):
+    def train(self, tsds=None, n_clusters=6, verbose=True, save=True, file_path='model.ks', model_name='kshape'):
+        '''Train model using either kshape (for time series data) or kmeans (for single time point data)'''
         if tsds is None:
             tsds = self.tsds
         self.n_clusters = n_clusters
-        self.model = ts.clustering.KShape(n_clusters=n_clusters,
-                                       verbose=verbose,
-                                       random_state=self.seed,
-                                       n_init = self.n_init
-                                      )
+        if model_name == 'kmeans':
+            self.model = KMeans(init="k-means++", n_clusters=n_clusters, n_init=self.n_init, random_state=self.seed)
+        if model_name == 'kshape':
+            self.model = ts.clustering.KShape(n_clusters=n_clusters,
+                                           verbose=verbose,
+                                           random_state=self.seed,
+                                           n_init = self.n_init
+                                          )
         self.model.fit(tsds)
         if save:
             self.model.to_json(file_path)
