@@ -27,13 +27,13 @@ class ModelViz:
     
     def load_data(self, file_path):
         self.ds = xr.open_dataset(file_path).drop_dims('axis_nbounds', errors='ignore')
-        if 'deptht' in train.ds.dims:
+        if 'deptht' in self.ds.dims:
             self.ds = self.ds.squeeze(dim=['deptht'])
         
     def load_mfdata(self, file_glob):
         files = glob.glob(file_glob)
         self.ds = xr.open_mfdataset(files).drop_dims('axis_nbounds', errors='ignore')
-        if 'deptht' in train.ds.dims:
+        if 'deptht' in self.ds.dims:
             self.ds = self.ds.squeeze(dim=['deptht'])
 
     def load_grid(self, file_path):
@@ -60,14 +60,16 @@ class ModelViz:
         self.ds = self.ds[self.cluster_vars]
         if do_slice == True:
             self.ds = self.ds.isel(x=self.x_strip, y=self.y_strip)
-        if self.time_var in trains.ds.dims:
+        if self.time_var in self.ds.dims:
             self.ds = self.ds.rename({self.time_var:'time'})
+        else:
+            self.ds = self.ds.expand_dims(dim = {"time":np.asarray([1])})
         if self.norm == 'magnitude':
             # Global normalisation by magnitude of variable for all data
             self.norm_factor = {}
             for v in self.cluster_vars:
                 self.norm_factor[v] = np.sqrt((self.ds[v]*self.ds[v]).sum())
-                self.ds[v] /= self.norm_factor[v]
+                self.ds[v] = self.ds[v]/self.norm_factor[v]
         if self.norm == 'stdev':
             # Global normalisation by magnitude and variability for point data
             for v in self.cluster_vars:
