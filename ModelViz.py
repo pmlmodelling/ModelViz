@@ -27,13 +27,13 @@ class ModelViz:
     
     def load_data(self, file_path):
         self.ds = xr.open_dataset(file_path).drop_dims('axis_nbounds', errors='ignore')
-        if 'deptht' in train.ds.dims == True:
+        if 'deptht' in train.ds.dims:
             self.ds = self.ds.squeeze(dim=['deptht'])
         
     def load_mfdata(self, file_glob):
         files = glob.glob(file_glob)
         self.ds = xr.open_mfdataset(files).drop_dims('axis_nbounds', errors='ignore')
-        if 'deptht' in train.ds.dims == True:
+        if 'deptht' in train.ds.dims:
             self.ds = self.ds.squeeze(dim=['deptht'])
 
     def load_grid(self, file_path):
@@ -56,14 +56,25 @@ class ModelViz:
         for v in sum_vars:
             self.ds[v] = self.ds[sum_vars[v]].to_array(dim='sum').sum(dim='sum', skipna=False)
         
-    def preprocess(self):
-        self.ds = self.ds[self.cluster_vars].isel(x=self.x_strip, y=self.y_strip).rename({self.time_var:'time'})
+    def preprocess(self, do_slice=True):
+        self.ds = self.ds[self.cluster_vars]
+        if do_slice == True:
+            self.ds = self.ds.isel(x=self.x_strip, y=self.y_strip)
+        if self.time_var in trains.ds.dims:
+            self.ds = self.ds.rename({self.time_var:'time'})
         if self.norm:
+            # Global normalisation by magnitude of variable for all data
             self.norm_factor = {}
             for v in self.cluster_vars:
                 self.norm_factor[v] = np.sqrt((self.ds[v]*self.ds[v]).sum())
                 self.ds[v] /= self.norm_factor[v]
-        
+        if self.norm:
+            # Global normalisation by magnitude and variability for point data
+            self.norm_factor = {}
+            for v in self.cluster_vars:
+                self.norm_factor[v] = np.sqrt((self.ds[v]*self.ds[v]).sum())
+                self.ds[v] = (self.norm_factor[v]-self.ds[v].mean())/self.ds[v].std()
+
     def make_tsds(self, save=False, file_path='dataset.csv'):
         ds_stack = self.ds.stack(Npts=('x','y')).where(self.mask==1,drop=True)
         self.index = ds_stack.Npts
