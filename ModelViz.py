@@ -191,7 +191,6 @@ class ModelViz:
     
     def plot_vars(self, plot_vars={'N3_n':'Nitrate','Phytoplankton':'Phyto', 'DOM':'DOM', 'POM':'POM'}, rescale=False, savefig=None, file_path='cluster_ts.png'):
         # for plotting cluster outputs when input variables are not time series
-        # change - option to save output as one file.
         self.line_colors = [p['color'] for p in plt.rcParams['axes.prop_cycle']]
         self.cmap = plt.get_cmap('Set3')
         self.cmap_discrete = self.cmap(np.linspace(0,1,self.model.n_clusters))
@@ -199,15 +198,16 @@ class ModelViz:
         f = plt.figure(figsize=(8,3*self.model.n_clusters))
         for i in range(self.model.n_clusters):
             ax = f.add_subplot(gs[i])
+            x_tick_labels = np.asarray([])
             for v,var in enumerate(plot_vars):
                 scale = self.norm_factor[var] if rescale else 1
                 xbar = scale*self.cluster_ds.class_TS.sel(var=var,vclass=i)
                 xstd = scale*self.cluster_ds.class_TS_std.sel(var=var,vclass=i)
                 ax.plot(v+1,xbar,'o',label=plot_vars[var],c=self.line_colors[v])
                 ax.errorbar(v+1,xbar,xstd,alpha=0.5,color=self.line_colors[v]) 
+                x_tick_labels = np.append(x_tick_labels,[plot_vars[var]])
             ax.set_xlim([0,v+2])
-            ax.tick_params(axis='x', labelrotation=45)
-            ax.legend(loc='upper right',ncol=2)
+            ax.set_xticks(range(1,v+2),x_tick_labels)
             xmin,xmax = plt.gca().get_xlim()
             xdiff = xmax-xmin
             ymin,ymax = plt.gca().get_ylim()
