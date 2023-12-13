@@ -90,7 +90,7 @@ class ModelViz:
         self.tsds = pd.read_csv(file_path)
         self.index = self.tsds.index
     
-    def train(self, tsds=None, n_clusters=6, verbose=True, save=True, file_path='model.ks', model_name='kshape'):
+    def train(self, tsds=None, n_clusters=6, method='quantile', verbose=True, save=True, file_path='model.ks', model_name='kshape'):
         '''Train model using either kshape (for time series data) or kmeans (for single time point data)'''
         if tsds is None:
             tsds = self.tsds
@@ -98,11 +98,24 @@ class ModelViz:
         if model_name == 'kmeans':
             self.model = KMeans(init="k-means++", n_clusters=n_clusters, n_init=self.n_init, random_state=self.seed)
         if model_name == 'kshape':
-            self.model = ts.clustering.KShape(n_clusters=n_clusters,
+            if method == 'quantile':
+                print('Initialising using quantiles')
+                quantiles = np.arange(1/(2*n_clusters),1,1/n_clusters)
+                self.model = ts.clustering.KShape(n_clusters=n_clusters,
                                            verbose=verbose,
-                                           random_state=self.seed,
-                                           n_init = self.n_init
-                                          )
+                                           init=tsds.quantile(q=quantiles).values[:,:,np.newaxis],
+                                           n_init = 1
+                                           )
+            elif method == 'random':
+                print('Initialising using random, seed = ',self.seed)
+                self.model = ts.clustering.KShape(n_clusters=n_clusters,
+                                   verbose=verbose,
+                                   random_state=self.seed,
+                                   n_init = self.n_init
+                                   )
+            else:
+                print('Unrecognised initialisation method')
+                return
         self.model.fit(tsds)
         if save:
             self.model.to_json(file_path)
