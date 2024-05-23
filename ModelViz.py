@@ -66,7 +66,9 @@ class ModelViz:
             None
         """
         files = glob.glob(file_glob)
-        self.ds = xr.open_mfdataset(files).squeeze(dim=['deptht']).drop_dims('axis_nbounds', errors='ignore')
+        self.ds = xr.open_mfdataset(files).drop_dims('axis_nbounds', errors='ignore')
+        if 'deptht' in self.ds.dims:
+                    self.ds = self.ds.squeeze(dim=['deptht'])
 
     def load_grid(self, file_path):
         """
