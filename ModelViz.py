@@ -116,15 +116,17 @@ class ModelViz:
             }
         for v in sum_vars:
             self.ds[v] = self.ds[sum_vars[v]].to_array(dim='sum').sum(dim='sum', skipna=False)
-
-    def preprocess(self):
+        
+    def preprocess(self, do_slice=True):
         """
         Preprocess the dataset, including variable selection and normalization.
 
         Returns:
             None
         """
-        self.ds = self.ds[self.cluster_vars].isel(x=self.x_strip, y=self.y_strip)
+        self.ds = self.ds[self.cluster_vars]
+        if do_slice == True:
+            self.ds = self.ds.isel(x=self.x_strip, y=self.y_strip)
         if self.time_var in self.ds.dims:
             if self.time_var != "time":
                 self.ds = self.ds.rename({self.time_var:'time'})
