@@ -51,7 +51,9 @@ class ModelViz:
         Returns:
             None
         """
-        self.ds = xr.open_dataset(file_path).squeeze(dim=['deptht']).drop_dims('axis_nbounds', errors='ignore')
+        self.ds = xr.open_dataset(file_path).drop_dims('axis_nbounds', errors='ignore')
+        if 'deptht' in self.ds.dims:
+            self.ds = self.ds.squeeze(dim=['deptht'])
 
     def load_mfdata(self, file_glob):
         """
