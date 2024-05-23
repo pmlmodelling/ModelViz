@@ -68,7 +68,7 @@ class ModelViz:
         files = glob.glob(file_glob)
         self.ds = xr.open_mfdataset(files).drop_dims('axis_nbounds', errors='ignore')
         if 'deptht' in self.ds.dims:
-                    self.ds = self.ds.squeeze(dim=['deptht'])
+            self.ds = self.ds.squeeze(dim=['deptht'])
 
     def load_grid(self, file_path):
         """
@@ -124,8 +124,13 @@ class ModelViz:
         Returns:
             None
         """
-        self.ds = self.ds[self.cluster_vars].isel(x=self.x_strip, y=self.y_strip).rename({self.time_var: 'time'})
-        if self.norm:
+        self.ds = self.ds[self.cluster_vars].isel(x=self.x_strip, y=self.y_strip)
+        if self.time_var in self.ds.dims:
+            if self.time_var != "time":
+                self.ds = self.ds.rename({self.time_var:'time'})
+        else:
+            self.ds = self.ds.expand_dims(dim = {"time":np.asarray([1])})
+	if self.norm:
             self.norm_factor = {}
             for v in self.cluster_vars:
                 self.norm_factor[v] = np.sqrt((self.ds[v] * self.ds[v]).sum())
