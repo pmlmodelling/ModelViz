@@ -2,24 +2,9 @@
 # coding: utf-8
 
 import xarray as xr
-#import netCDF4
-#import matplotlib.dates as mdates
-#from scipy import stats
-#import matplotlib as mpl
 import numpy as np
-#import pylab as plt
-#import datetime
-#import pandas as pd
-#import itertools
-#import glob
-#import tqdm
-#import cartopy.crs as ccrs
-#from cartopy.feature import NaturalEarthFeature
-#import tslearn as ts
-#import tslearn.utils
-#import tslearn.clustering
-#import tslearn.preprocessing
 import warnings
+import tqdm
 
 if __name__=="__main__":
 
@@ -30,11 +15,11 @@ if __name__=="__main__":
     print(client.dashboard_link)
     
     # Note - which year/years - which depth - surface, bottom, depth integrated
-    year_beg = 2001
+    year_beg = 2000
     year_end = 2004
 
     depth = 'bottom'
-    classification = 'biogeo'
+    classification = 'ecosys'
    
    # Variables to train on
     
@@ -67,31 +52,85 @@ if __name__=="__main__":
     xsl = slice(15,-15)
     ysl = slice(15,-15)
 
-    input_path = '/data/thaumus2/scratch/hpo/COMFORT/baseline_archerfull/rundata/200[0-4]/**/'
-    full_filenames = input_path+'amm7_1d_*_ptrc_T.nc'
-    ds = xr.open_mfdataset(full_filenames)
+    if depth == 'surface':
+        input_path = '/data/thaumus2/scratch/hpo/COMFORT/baseline_archerfull/rundata/200[0-4]/**/'
+        full_filenames = input_path+'amm7_1d_*_ptrc_T.nc'
+    elif classification == 'biogeo':
+        input_path = '/data/proteus1/scratch/rmi/classifications/COMFORT_data/'
+        full_filenames = input_path+'amm7_mean_2000-2004_all_depths_biogeo.nc'
+    elif classification == 'ecosys':
+        input_path = '/data/proteus1/scratch/rmi/classifications/COMFORT_data/'
+        full_filenames = input_path+'amm7_mean_2000-2004_all_depths_ecosys_full.nc'
+
+    #grd = xr.open_dataset('/data/proteus1/scratch/dapa/AMM7-MONTHLY-SURFACE/domain_cfg.nc').isel(t=0)
+    grd = xr.open_dataset('/data/sthenno1/to_archive/yuti/yuti-SSB-AMM7-hindcasts/mesh_mask.nc').isel(t=0)
+
+    #if depth == 'DI':
+        #Create 3D mask - not needed for mesh_mask as this is already provided
+        # DALE version
+        #tmask = 0*grd.e3t_0.values + 1
+        #for i in tqdm.tqdm(grd.x):
+        #    for j in grd.y:
+        #        tmask[int(grd.bottom_level.isel(x=i,y=j).values):,j,i] = 0
+        #grd['tmask'] = (('z','y','x'),tmask)
+
+    if depth == 'bottom':
+        #Create 3D mask
+        # DALE version
+        #tmask = 0*grd.e3t_0.values
+        #for i in tqdm.tqdm(grd.x):
+        #    for j in grd.y:
+        #        tmask[int(grd.bottom_level.isel(x=i,y=j).values)-1,j,i] = 1
+        # HELEN version (SSB) - is there a different mask which gives the bottom?
+        floor = 0*grd.tmask.values
+        for i in np.arange(0,floor.shape[1]):
+          for j in np.arange(0,floor.shape[2]):
+            for k in np.arange(-1,-51,-1):
+              if grd.tmask[k,i,j]==1: floor[k,i,j]=1; break
+        grd['floor'] = (('z','y','x'),floor)
+
+    # Put mask and depth in grd dataset
+    grd = grd.rename_dims({'z':'deptht'})
     
+    #if classification in ['ecosys','biogeo','benthic']:
+    #    if depth == 'DI':
+    #        vars_to_open =  vars + ['e3t']
+    #        print(vars_to_open)
+    #        ds = xr.open_mfdataset(full_filenames,data_vars=vars_to_open)
+    #    else:
+    
+    ds = xr.open_mfdataset(full_filenames) #,data_vars=vars)
+    print(ds)
+
+    ds['tmask'] = (('deptht','y','x'),tmask)
     if classification == 'physics':
         ds_phys = xr.open_mfdataset(input_path+'amm7_1d_*_grid_T.nc').rename_dims({'y_grid_T':'y','x_grid_T':'x'}).rename({'nav_lat_grid_T':'nav_lat','nav_lon_grid_T':'nav_lon'})
         ds = ds_phys[['votemper','vosaline']].isel(deptht=0)
         ds = xr.merge([ds, ds_phys['mldr10_1']])
-    elif depth == 'surface':
-        ds=ds.isel(deptht=0)
-    elif depth == 'bottom':
-        ds=ds.isel(deptht=-1)
     
-    ds = ds.isel(x=xsl,y=ysl)
-
     if classification == 'ecosys':
         ds['Phytoplankton'] = ds[['P1_c', 'P2_c', 'P3_c', 'P4_c']].to_array(dim='sum').sum(dim='sum', skipna=False)
         ds['Zooplankton'] = ds[['Z4_c', 'Z5_c', 'Z6_c']].to_array(dim='sum').sum(dim='sum', skipna=False)
         ds['DOC'] = ds[['R1_c', 'R2_c', 'R3_c']].to_array(dim='sum').sum(dim='sum', skipna=False)
         ds['POC'] = ds[['R4_c', 'R6_c', 'R8_c']].to_array(dim='sum').sum(dim='sum', skipna=False)
 
-    ds = ds[vars]
-    
 
-    ds = ds.mean('time_counter')
+    ds = ds[vars]
+    print(ds)
+    if depth == 'surface':
+        ds=ds.isel(deptht=0)
+        ds = ds.mean('time_counter')
+    elif depth == 'bottom':
+        # Apply mask and integrate
+        # ds = (ds*grd.tmask).sum('deptht') DALE
+        ds = (ds*grd.floor).sum('deptht')
+    elif depth == 'DI':
+        # multiply by thickness
+        ds = ds*grd.e3t_0
+        # Apply mask and integrate
+        ds = (ds*grd.tmask).sum('deptht')
+
+    ds = ds.isel(x=xsl,y=ysl)
     
     if depth != None:
         depth_name = depth + '_'
