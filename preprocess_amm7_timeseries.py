@@ -13,12 +13,6 @@ import pandas as pd
 import itertools
 import glob
 import tqdm
-import cartopy.crs as ccrs
-from cartopy.feature import NaturalEarthFeature
-import tslearn as ts
-import tslearn.utils
-import tslearn.clustering
-import tslearn.preprocessing
 import warnings
 
 if __name__=="__main__":
@@ -29,8 +23,34 @@ if __name__=="__main__":
     client = Client()
     print(client.dashboard_link)
 
-    # Variables to train on
-    vars = ['Y2_c','Y3_c','Y4_c','H1_c','H2_c','Q1_c','Q6_c']
+    # Note - which year/years - which depth - surface, bottom, depth integrated
+    year_beg = 2001
+    year_end = 2004
+
+    depth = 'bottom'
+    classification = 'biogeo'
+   
+   # Variables to train on
+    
+    # benthic
+    if classification == 'benthic':
+        vars = ['Y2_c','Y3_c','Y4_c','H1_c','H2_c','Q1_c','Q6_c']
+    # Dale's original set
+    if classification == 'Dale':
+        vars = ['B1_c','Zooplankton', 'DOM', 'POM', 'Phytoplankton','N4_n','N5_s','O2_o','O3_c','O3_TA','N1_p','N3_n','votemper','vosaline']
+    # ecosystem level
+    if classification == 'ecosys_full':
+        vars = ['P1_c','P2_c','P3_c','P4_c','Z4_c','Z5_c','Z6_c','R1_c','R2_c','R3_c','R4_c','R6_c','R8_c','B1_c']
+    # ecosystem level summed
+    if classification == 'ecosys':
+        vars = ['Phytoplankton','Zooplankton','DOC','POC','B1_c']
+    # biogeochemistry
+    if classification == 'biogeo':
+        vars = ['N1_p','N3_n','N4_n','N5_s','O2_o','O3_c','O3_TA']
+    # physics
+    if classification == 'physics':
+        vars = ['votemper','vosaline','mldr10_1']
+    
     #vars = ['B1_c','Zooplankton', 'DOM', 'POM', 'Phytoplankton','N4_n','N5_s','O2_o','O3_c','O3_TA','N1_p','N3_n','votemper','vosaline']
     #vars = ['Zooplankton', 'fish_c_tot'] # 'fish_pelagic_size_spectrum_slope','
     # Map of names
@@ -43,39 +63,42 @@ if __name__=="__main__":
     xsl = slice(15,-15)
     ysl = slice(15,-15)
     
-    for year in range(2001,2005):
-        for month in range(1,13):
-            input_path = '/data/thaumus2/scratch/hpo/COMFORT/baseline_archerfull/'+str(year)+'/*'+str(month)+'/'
-            print(input_path)
-            ds = xr.open_mfdataset(input_path+'amm7_1d_'+str(year)+'*_ptrc_T.nc')
-            # ds_phys = xr.open_mfdataset(input_path+'amm7_1d_'+str(year)+'*_grid_T.nc').rename_dims({'y_grid_T':'y','x_grid_T':'x'}).rename({'nav_lat_grid_T':'nav_lat','nav_lon_grid_T':'nav_lon'})
-            #ds = xr.merge([ds,ds_phys[['votemper','vosaline']]]).isel(deptht=0,x=xsl,y=ysl)
-            ds = ds.isel(x=xsl,y=ysl)
+    input_path = '/data/thaumus2/scratch/hpo/COMFORT/baseline_archerfull/rundata/200[0-4]/**/'
+    full_filenames = input_path+'amm7_1d_*_ptrc_T.nc'
+    ds = xr.open_mfdataset(full_filenames)
+    
+    if classification == 'physics':
+        ds_phys = xr.open_mfdataset(input_path+'amm7_1d_*_grid_T.nc').rename_dims({'y_grid_T':'y','x_grid_T':'x'}).rename({'nav_lat_grid_T':'nav_lat','nav_lon_grid_T':'nav_lon'})
+        ds = ds_phys[['votemper','vosaline']].isel(deptht=0)
+        ds = xr.merge([ds, ds_phys['mldr10_1']])
+    elif depth == 'surface':
+        ds=ds.isel(deptht=0)
+    elif depth == 'bottom':
+        ds=ds.isel(deptht=-2)
+    
+    ds = ds.isel(x=xsl,y=ysl)
 
-            #ds['Phytoplankton'] = ds[['P1_c', 'P2_c', 'P3_c', 'P4_c']].to_array(dim='sum').sum(dim='sum', skipna=False)
-            #ds['Zooplankton'] = ds[['Z4_c', 'Z5_c', 'Z6_c']].to_array(dim='sum').sum(dim='sum', skipna=False)
-            #ds['DOM'] = ds[['R1_c', 'R2_c', 'R3_c']].to_array(dim='sum').sum(dim='sum', skipna=False)
-            #ds['POM'] = ds[['R4_c', 'R6_c', 'R8_c']].to_array(dim='sum').sum(dim='sum', skipna=False)
+    if classification == 'ecosys':
+        ds['Phytoplankton'] = ds[['P1_c', 'P2_c', 'P3_c', 'P4_c']].to_array(dim='sum').sum(dim='sum', skipna=False)
+        ds['Zooplankton'] = ds[['Z4_c', 'Z5_c', 'Z6_c']].to_array(dim='sum').sum(dim='sum', skipna=False)
+        ds['DOC'] = ds[['R1_c', 'R2_c', 'R3_c']].to_array(dim='sum').sum(dim='sum', skipna=False)
+        ds['POC'] = ds[['R4_c', 'R6_c', 'R8_c']].to_array(dim='sum').sum(dim='sum', skipna=False)
 
-            ds = ds[vars]
-            
-            time_val = ds.time_counter.values[0]
-            print(time_val)
-            #month_length = ds.time_counter.dt.days_in_month
-            # Calculate the weights by grouping by 'time.season'.
-            #weights = (
-            #    month_length.groupby("time_counter.month") / month_length.groupby("time_counter.month").sum()
-            #)
+    ds = ds[vars]
+    
+    def mon_mean(x):
+        return x.groupby('time_counter.month').mean('time_counter')
 
-            # Test that the sum of the weights for each season is 1.0
-            #np.testing.assert_allclose(weights.groupby("time_counter.month").sum().values, np.ones(12))
+    # Calculate the monthly average
+    ds = ds.resample(time_counter='MS').mean()
+    #ds = ds.groupby("time_counter.year").apply(mon_mean) #.groupby("time_counter.month").mean(dim="time_counter")
+    #ds = ds.stack(time_counter=("year","month"))
+    #ds = ds.expand_dims(dim={"time":np.asarray([time_val])})
 
-            # Calculate the weighted average
-            #ds_weighted = (ds * weights).groupby("time_counter.month").sum(dim="time_counter")
-            #ds = ds_weighted.transpose('month','y','x')
-            ds = ds.mean('time_counter')
-            ds = ds.expand_dims(dim={"time":np.asarray([time_val])})
+    if depth != None:
+        depth_name = depth + '_'
+    else:
+        depth_name = ''
 
-            ds.to_netcdf('/data/proteus1/scratch/rmi/classifications/COMFORT_data/benthic/amm7_1m_'+str(year)+'_'+str(month)+'.nc')
-
+    ds.to_netcdf('/data/proteus1/scratch/rmi/classifications/COMFORT_data/amm7_monthly_mean_'+str(year_beg)+'-'+str(year_end)+'_'+depth_name+classification+'.nc')
 
