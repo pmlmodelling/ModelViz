@@ -41,8 +41,9 @@ class ModelViz:
         self.grd = xr.open_dataset(file_path).squeeze(dim=['t']).isel(x=self.x_strip,y=self.y_strip)
         self.dim_x = self.grd.x
         self.dim_y = self.grd.y
-        self.mask = xr.where(self.grd.bottom_level>0,1,0) #.stack(Npts=('x','y'))
-        
+        # self.mask = xr.where(self.grd.bottom_level>0,1,0) #.stack(Npts=('x','y')) # new NEMO mask with bottom level
+        self.mask = xr.where(self.grd.tmask.isel(z=0)==1,1,0) #.stack(Npts=('x','y')) # old NEMO mask with tmask
+    
     def save_data(self, file_path):
         self.ds.to_netcdf(file_path)        
     
@@ -62,7 +63,8 @@ class ModelViz:
         if do_slice == True:
             self.ds = self.ds.isel(x=self.x_strip, y=self.y_strip)
         if self.time_var in self.ds.dims:
-            self.ds = self.ds.rename({self.time_var:'time'})
+            if self.time_var != "time":
+                self.ds = self.ds.rename({self.time_var:'time'})
         else:
             self.ds = self.ds.expand_dims(dim = {"time":np.asarray([1])})
         self.ds = self.ds.where(self.mask==1,drop=True)
@@ -204,6 +206,7 @@ class ModelViz:
     
     def plot_vars(self, plot_vars={'N3_n':'Nitrate','Phytoplankton':'Phyto', 'DOM':'DOM', 'POM':'POM'}, rescale=False, savefig=None, file_path='cluster_ts.png'):
         # for plotting cluster outputs when input variables are not time series
+        print('PLOT vars')
         self.line_colors = [p['color'] for p in plt.rcParams['axes.prop_cycle']]
         self.cmap = plt.get_cmap('Set3')
         self.cmap_discrete = self.cmap(np.linspace(0,1,self.model.n_clusters))
@@ -220,13 +223,15 @@ class ModelViz:
                 ax.errorbar(v+1,xbar,xstd,alpha=0.5,color=self.line_colors[v]) 
                 x_tick_labels = np.append(x_tick_labels,[plot_vars[var]])
             ax.set_xlim([0,v+2])
-            ax.set_xticks(range(1,v+2),x_tick_labels)
+            ax.set_xticks(range(1,v+2),x_tick_labels,fontsize=14)
             xmin,xmax = plt.gca().get_xlim()
             xdiff = xmax-xmin
             ymin,ymax = plt.gca().get_ylim()
             ydiff = ymax-ymin
-            ax.add_patch(mpl.patches.Rectangle((xmin+0.01*xdiff,ymin+0.82*ydiff),0.05*xdiff,0.15*ydiff,facecolor=self.cmap_discrete[i]))    
+            ax.add_patch(mpl.patches.Rectangle((xmin+0.01*xdiff,ymin+0.82*ydiff),0.05*xdiff,0.15*ydiff,facecolor=self.cmap_discrete[i]))   
+        gs.tight_layout(f)
         if savefig is not None:
+            print('Saving figures')
             p = pathlib.Path(file_path)
-            plt.savefig(p.with_stem(f"{p.stem}"))  
+            plt.savefig(p.with_stem(f"{p.stem}"), bbox_inches='tight')  
     
