@@ -12,6 +12,8 @@ import pathlib
 import tslearn as ts
 import tslearn.clustering
 import glob
+from sklearn.cluster import KMeans
+import matplotlib.gridspec as gridspec
 
 class ModelViz:
     """
@@ -37,7 +39,7 @@ class ModelViz:
         self.x_strip = slice(10, -10)
         self.y_strip = slice(10, -10)
         self.n_clusters = 6
-        self.norm = True
+        self.norm = True # other options None and stdev
         self.seed = 950
         self.n_init = 3
 
@@ -83,8 +85,13 @@ class ModelViz:
         self.grd = xr.open_dataset(file_path).squeeze(dim=['t']).isel(x=self.x_strip, y=self.y_strip)
         self.dim_x = self.grd.x
         self.dim_y = self.grd.y
-        self.mask = xr.where(self.grd.bottom_level > 0, 1, 0).stack(Npts=('x', 'y'))
-
+        if 'bottom_level' in self.grd.variables:
+            # NEMO 4.0 mask with bottom level
+            self.mask = xr.where(self.grd.bottom_level > 0, 1, 0).stack(Npts=('x','y'))
+        if 'tmask' in self.grd.variables:
+            # NEMO 3.6 mask with tmask
+            self.mask = xr.where(self.grd.tmask.isel(z=0)==1,1,0).stack(Npts=('x','y'))
+    
     def save_data(self, file_path):
         """
         Save the current dataset to a NetCDF file.
@@ -132,7 +139,7 @@ class ModelViz:
                 self.ds = self.ds.rename({self.time_var:'time'})
         else:
             self.ds = self.ds.expand_dims(dim = {"time":np.asarray([1])})
-	if self.norm in ['True', 'magnitude']:
+        if self.norm in [True, 'magnitude']:
 	    # Global normalisation by magnitude of variable for all data
             self.norm_factor = {}
             for v in self.cluster_vars:
@@ -365,7 +372,6 @@ class ModelViz:
     
     def plot_vars(self, plot_vars={'N3_n':'Nitrate','Phytoplankton':'Phyto', 'DOM':'DOM', 'POM':'POM'}, rescale=False, savefig=None, file_path='cluster_ts.png'):
         # for plotting cluster outputs when input variables are not time series
-        print('PLOT vars')
         self.line_colors = [p['color'] for p in plt.rcParams['axes.prop_cycle']]
         self.cmap = plt.get_cmap('Set3')
         self.cmap_discrete = self.cmap(np.linspace(0,1,self.model.n_clusters))
