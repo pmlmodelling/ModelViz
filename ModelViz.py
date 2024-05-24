@@ -181,7 +181,7 @@ class ModelViz:
 
     def train(self, tsds=None, n_clusters=6, method='quantile', verbose=True, save=True, file_path='model.ks', model_name='kshape'):
         """
-        Train the clustering model using KShape algorithm.
+        Train the clustering model using either KShape (for time series data) or KMeans (for single time point data).
 
         Args:
             tsds (pd.DataFrame): Time series dataset.
@@ -194,7 +194,6 @@ class ModelViz:
         Returns:
             None
         """
-	'''Train model using either kshape (for time series data) or kmeans (for single time point data)'''
         if tsds is None:
             tsds = self.tsds
         self.n_clusters = n_clusters
