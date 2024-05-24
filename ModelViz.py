@@ -87,10 +87,10 @@ class ModelViz:
         self.dim_y = self.grd.y
         if 'bottom_level' in self.grd.variables:
             # NEMO 4.0 mask with bottom level
-            self.mask = xr.where(self.grd.bottom_level > 0, 1, 0).stack(Npts=('x','y'))
+            self.mask = xr.where(self.grd.bottom_level > 0, 1, 0)
         if 'tmask' in self.grd.variables:
             # NEMO 3.6 mask with tmask
-            self.mask = xr.where(self.grd.tmask.isel(z=0)==1,1,0).stack(Npts=('x','y'))
+            self.mask = xr.where(self.grd.tmask.isel(z=0)==1,1,0)
     
     def save_data(self, file_path):
         """
@@ -139,6 +139,7 @@ class ModelViz:
                 self.ds = self.ds.rename({self.time_var:'time'})
         else:
             self.ds = self.ds.expand_dims(dim = {"time":np.asarray([1])})
+        self.ds = self.ds.where(self.mask==1,drop=True)
         if self.norm in [True, 'magnitude']:
 	    # Global normalisation by magnitude of variable for all data
             self.norm_factor = {}
@@ -161,7 +162,8 @@ class ModelViz:
         Returns:
             None
         """
-        ds_stack = self.ds.stack(Npts=('x', 'y')).where(self.mask == 1, drop=True)
+	# not sure why I currently need to mask again here - but I do
+        ds_stack = self.ds.stack(Npts=('x', 'y')).where(self.mask.stack(Npts=('x','y')) == 1, drop=True)
         self.index = ds_stack.Npts
         ds_stack = ds_stack.to_stacked_array('z', sample_dims=['Npts'])
         self.tsds = pd.DataFrame(ds_stack.variable, index=self.index, columns=ds_stack.time)
