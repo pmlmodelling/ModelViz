@@ -85,8 +85,12 @@ class ModelViz:
         self.grd = xr.open_dataset(file_path).squeeze(dim=['t']).isel(x=self.x_strip, y=self.y_strip)
         self.dim_x = self.grd.x
         self.dim_y = self.grd.y
-        # self.mask = xr.where(self.grd.bottom_level>0,1,0) #.stack(Npts=('x','y')) # new NEMO mask with bottom level
-        self.mask = xr.where(self.grd.tmask.isel(z=0)==1,1,0) #.stack(Npts=('x','y')) # old NEMO mask with tmask
+        if 'bottom_level' in self.grd.variables:
+            # NEMO 4.0 mask with bottom level
+            self.mask = xr.where(self.grd.bottom_level > 0, 1, 0) #.stack(Npts=('x','y'))
+        if 'tmask' in self.grd.variables:
+            # NEMO 3.6 mask with tmask
+            self.mask = xr.where(self.grd.tmask.isel(z=0)==1,1,0) #.stack(Npts=('x','y'))
     
     def save_data(self, file_path):
         """
@@ -136,11 +140,11 @@ class ModelViz:
         else:
             self.ds = self.ds.expand_dims(dim = {"time":np.asarray([1])})
         self.ds = self.ds.where(self.mask==1,drop=True)
-        if self.norm == 'magnitude':
-            # Global normalisation by magnitude of variable for all data
+        if self.norm in [True, 'magnitude']:
+	    # Global normalisation by magnitude of variable for all data
             self.norm_factor = {}
             for v in self.cluster_vars:
-                self.norm_factor[v] = np.sqrt((self.ds[v]*self.ds[v]).sum())
+                self.norm_factor[v] = np.sqrt((self.ds[v] * self.ds[v]).sum())
                 self.ds[v] = self.ds[v]/self.norm_factor[v]
         if self.norm == 'stdev':
             # Global normalisation by magnitude and variability for point data
@@ -370,7 +374,6 @@ class ModelViz:
     
     def plot_vars(self, plot_vars={'N3_n':'Nitrate','Phytoplankton':'Phyto', 'DOM':'DOM', 'POM':'POM'}, rescale=False, savefig=None, file_path='cluster_ts.png'):
         # for plotting cluster outputs when input variables are not time series
-        print('PLOT vars')
         self.line_colors = [p['color'] for p in plt.rcParams['axes.prop_cycle']]
         self.cmap = plt.get_cmap('Set3')
         self.cmap_discrete = self.cmap(np.linspace(0,1,self.model.n_clusters))
