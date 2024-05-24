@@ -132,11 +132,16 @@ class ModelViz:
                 self.ds = self.ds.rename({self.time_var:'time'})
         else:
             self.ds = self.ds.expand_dims(dim = {"time":np.asarray([1])})
-	if self.norm:
+	if self.norm in ['True', 'magnitude']:
+	    # Global normalisation by magnitude of variable for all data
             self.norm_factor = {}
             for v in self.cluster_vars:
                 self.norm_factor[v] = np.sqrt((self.ds[v] * self.ds[v]).sum())
-                self.ds[v] /= self.norm_factor[v]
+                self.ds[v] = self.ds[v]/self.norm_factor[v]
+        if self.norm == 'stdev':
+            # Global normalisation by magnitude and variability for point data
+            for v in self.cluster_vars:
+                self.ds[v] = (self.ds[v]-self.ds[v].mean())/self.ds[v].std()
 
     def make_tsds(self, save=False, file_path='dataset.csv'):
         """
