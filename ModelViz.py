@@ -82,7 +82,9 @@ class ModelViz:
         Returns:
             None
         """
-        self.grd = xr.open_dataset(file_path).squeeze(dim=['t']).isel(x=self.x_strip, y=self.y_strip)
+        self.grd = xr.open_dataset(file_path).isel(x=self.x_strip, y=self.y_strip)
+        if 't' in self.grd.dims:
+            self.grd = self.grd.squeeze(dim=['t'])
         self.dim_x = self.grd.x
         self.dim_y = self.grd.y
         if 'bottom_level' in self.grd.variables:
