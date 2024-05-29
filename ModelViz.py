@@ -100,6 +100,9 @@ class ModelViz:
             if 'tmask' in self.grd.variables:
                 # NEMO 3.6 mask with tmask
                 self.mask = xr.where(self.grd.tmask.isel(z=0)==1,1,0)
+        if 'time' in self.mask.coords:
+            self.mask = self.mask.drop_vars('time')
+
 
     
     def save_data(self, file_path):
