@@ -72,7 +72,7 @@ class ModelViz:
         if 'deptht' in self.ds.dims:
             self.ds = self.ds.squeeze(dim=['deptht'])
 
-    def load_grid(self, file_path):
+    def load_grid(self, file_path, var_name = False):
         """
         Load grid information from a NetCDF file.
 
@@ -90,12 +90,17 @@ class ModelViz:
                 self.grd = self.grd.squeeze(dim=['t'])
         self.dim_x = self.grd.x
         self.dim_y = self.grd.y
-        if 'bottom_level' in self.grd.variables:
-            # NEMO 4.0 mask with bottom level
-            self.mask = xr.where(self.grd.bottom_level > 0, 1, 0)
-        if 'tmask' in self.grd.variables:
-            # NEMO 3.6 mask with tmask
-            self.mask = xr.where(self.grd.tmask.isel(z=0)==1,1,0)
+        if var_name != False:
+            # when using a data file to mask, choose which variable to mask with
+            self.mask = xr.where(np.isfinite(self.grd[var_name]),1,0)
+        else:
+            if 'bottom_level' in self.grd.variables:
+                # NEMO 4.0 mask with bottom level
+                self.mask = xr.where(self.grd.bottom_level > 0, 1, 0)
+            if 'tmask' in self.grd.variables:
+                # NEMO 3.6 mask with tmask
+                self.mask = xr.where(self.grd.tmask.isel(z=0)==1,1,0)
+
     
     def save_data(self, file_path):
         """
