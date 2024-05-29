@@ -84,7 +84,10 @@ class ModelViz:
         """
         self.grd = xr.open_dataset(file_path).isel(x=self.x_strip, y=self.y_strip)
         if 't' in self.grd.dims:
-            self.grd = self.grd.squeeze(dim=['t'])
+            if len(self.grd['t'])>1:
+                self.grd = self.grd.isel(t=0)
+            else:
+                self.grd = self.grd.squeeze(dim=['t'])
         self.dim_x = self.grd.x
         self.dim_y = self.grd.y
         if 'bottom_level' in self.grd.variables:
@@ -143,7 +146,7 @@ class ModelViz:
             self.ds = self.ds.expand_dims(dim = {"time":np.asarray([1])})
         self.ds = self.ds.where(self.mask==1,drop=True)
         if self.norm in [True, 'magnitude']:
-	    # Global normalisation by magnitude of variable for all data
+	        # Global normalisation by magnitude of variable for all data
             self.norm_factor = {}
             for v in self.cluster_vars:
                 self.norm_factor[v] = np.sqrt((self.ds[v] * self.ds[v]).sum())
@@ -164,7 +167,7 @@ class ModelViz:
         Returns:
             None
         """
-	# not sure why I currently need to mask again here - but I do
+	    # not sure why I currently need to mask again here - but I do
         ds_stack = self.ds.stack(Npts=('x', 'y')).where(self.mask.stack(Npts=('x','y')) == 1, drop=True)
         self.index = ds_stack.Npts
         ds_stack = ds_stack.to_stacked_array('z', sample_dims=['Npts'])
