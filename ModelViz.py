@@ -258,8 +258,8 @@ class ModelViz:
         Returns:
             None
         """
-        pred_labels = self.model.predict(self.tsds)
-        predictions = pd.DataFrame(pred_labels, index=self.index, columns=['Clusters'])
+        self.labels = self.model.predict(self.tsds)
+        predictions = pd.DataFrame(self.labels, index=self.index, columns=['Clusters'])
         predictions.index = pd.MultiIndex.from_tuples(predictions.index, names=('x', 'y'))
         # Restore original dimensions:
         if len(predictions.index.get_level_values(0).unique()) != len(self.dim_x):
