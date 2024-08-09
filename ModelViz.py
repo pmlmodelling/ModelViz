@@ -103,6 +103,7 @@ class ModelViz:
         if 'time' in self.mask.coords:
             self.mask = self.mask.drop_vars('time')
         ### cropping to remove area to the right of Denmark
+        ### Need to make this optional
         # longitude less than 10
         mask1 = xr.where(self.grd.nav_lon < 10 , 1, 0)
         # latitude less than 60
@@ -418,6 +419,34 @@ class ModelViz:
             ydiff = ymax-ymin
             ax.add_patch(mpl.patches.Rectangle((xmin+0.01*xdiff,ymin+0.82*ydiff),0.05*xdiff,0.15*ydiff,facecolor=self.cmap_discrete[i]))   
         gs.tight_layout(f)
+        if savefig is not None:
+            print('Saving figures')
+            p = pathlib.Path(file_path)
+            plt.savefig(p.with_stem(f"{p.stem}"), bbox_inches='tight')  
+    
+    def plot_vars_2(self, plot_vars={'N3_n':'Nitrate','Phytoplankton':'Phyto', 'DOM':'DOM', 'POM':'POM'}, rescale=False, savefig=None, file_path='cluster_ts.png', hex_list=None):
+        # for plotting cluster outputs when input variables are not time series
+        # plots all clusters in one figure so differences between variables are clearer.
+        if hex_list == None:
+            self.cmap = plt.get_cmap('Set3')
+            self.cmap_discrete = self.cmap(np.linspace(0,1,self.model.n_clusters))
+        else:
+            self.cmap_discrete = hex_list
+        f = plt.figure(figsize=(8,3))
+        plt.hlines(0,0,len(plot_vars)+2,linestyle='--',color='black')
+        for i in range(self.model.n_clusters):
+            x_tick_labels = np.asarray([])
+            increment = 0.8*(i-self.model.n_clusters/2)/self.model.n_clusters
+            for v,var in enumerate(plot_vars):
+                scale = self.norm_factor[var] if rescale else 1
+                xbar = scale*self.cluster_ds.class_TS.sel(var=var,vclass=i)
+                xstd = scale*self.cluster_ds.class_TS_std.sel(var=var,vclass=i)
+                plt.plot(v+1+increment,xbar,'o',label=plot_vars[var],c=self.cmap_discrete[i])
+                plt.errorbar(v+1+increment,xbar,xstd,alpha=0.5,color=self.cmap_discrete[i]) 
+                x_tick_labels = np.append(x_tick_labels,[plot_vars[var]])
+            plt.xlim([0,v+2])
+            plt.xticks(range(1,v+2),x_tick_labels,fontsize=14)
+        plt.tight_layout()
         if savefig is not None:
             print('Saving figures')
             p = pathlib.Path(file_path)
