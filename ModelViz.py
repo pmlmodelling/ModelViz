@@ -325,7 +325,7 @@ class ModelViz:
         """
         self.cluster_ds = xr.open_dataset(file_path)
 
-    def plot_map(self, savefig=None, file_path='class_map.png'):
+    def plot_map(self, savefig=None, file_path='class_map.png', hex_list = None):
         """
         Plot the class map on a map and save the figure.
 
@@ -336,8 +336,10 @@ class ModelViz:
         Returns:
             None
         """
-        self.cmap = plt.get_cmap('Set3')
-
+        if hex_list == None:
+            self.cmap = plt.get_cmap('Set3')
+        else:
+            self.cmap = self.make_cmap(hex_list)
         f = plt.figure(figsize=(8, 8))
         ax = plt.axes(projection=ccrs.PlateCarree())
         plt.pcolormesh(self.cluster_ds.lon, self.cluster_ds.lat, self.cluster_ds.class_map, cmap=self.cmap)
@@ -451,4 +453,27 @@ class ModelViz:
             print('Saving figures')
             p = pathlib.Path(file_path)
             plt.savefig(p.with_stem(f"{p.stem}"), bbox_inches='tight')  
-    
+
+    def make_cmap(self,cmap_colors):
+        """
+        Build a custom colormap for plotting from a list of input HTML hex colour codes.
+
+        Parameters
+        ----------
+        cmap_colors : array_like[shape=(N),dtype=object]
+            A list of HTML hex colour codes. (-)
+
+        Returns
+        -------
+        cmap : matplotlib.colors.Colormap
+            Matplotlib colormap instance generated from the input codes. (-)
+
+        """
+        from matplotlib.colors import LinearSegmentedColormap
+        from matplotlib.colors import to_rgb
+        
+        cmap =                                                                     \
+        LinearSegmentedColormap.from_list( 'my_list',[to_rgb(c1) for c1 in         \
+                                                      cmap_colors])
+
+        return cmap
