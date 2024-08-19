@@ -72,7 +72,7 @@ class ModelViz:
         if 'deptht' in self.ds.dims:
             self.ds = self.ds.squeeze(dim=['deptht'])
 
-    def load_grid(self, file_path, var_name = False):
+    def load_grid(self, file_path, var_name = False, crop_baltic = True):
         """
         Load grid information from a NetCDF file.
 
@@ -103,15 +103,15 @@ class ModelViz:
         if 'time' in self.mask.coords:
             self.mask = self.mask.drop_vars('time')
         ### cropping to remove area to the right of Denmark
-        ### Need to make this optional
-        # longitude less than 10
-        mask1 = xr.where(self.grd.nav_lon < 10 , 1, 0)
-        # latitude less than 60
-        mask2 = xr.where(self.grd.nav_lat > 60, 1, 0)
-        # latitude greater than 55
-        mask3 = xr.where(self.grd.nav_lat < 55, 1, 0)
-        mask = mask1 + mask2 + mask3
-        self.mask = xr.where(mask > 0, self.mask, 0) 
+        if crop_baltic == True:
+            # longitude less than 10
+            mask1 = xr.where(self.grd.nav_lon < 10 , 1, 0)
+            # latitude less than 60
+            mask2 = xr.where(self.grd.nav_lat > 60, 1, 0)
+            # latitude greater than 55
+            mask3 = xr.where(self.grd.nav_lat < 55, 1, 0)
+            mask = mask1 + mask2 + mask3
+            self.mask = xr.where(mask > 0, self.mask, 0) 
         
     
     def save_data(self, file_path):
