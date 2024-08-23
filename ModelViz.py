@@ -246,6 +246,7 @@ class ModelViz:
                 return
         self.model.fit(tsds)
         if save:
+            # this does not work with kmeans
             self.model.to_json(file_path)
 
     def load_model(self, file_path):
@@ -396,6 +397,50 @@ class ModelViz:
                 p = pathlib.Path(file_path)
                 plt.savefig(p.with_stem(f"{p.stem}_{i}"))
     
+    def plot_ts_2(self, legend_names, plot_vars={'N3_n': 'Nitrate', 'Phytoplankton': 'Phyto', 'DOM': 'DOM', 'POM': 'POM'}, rescale=False,
+                savefig=None, file_path='cluster_ts.png', hex_list=None):
+        """
+        Plot time series for each variable to compare differences in clusters.
+
+        Args:
+            legend_names (list): List of labels for the different clusters e.g. ['1','2'..
+            plot_vars (dict): Dictionary specifying variables to be plotted.
+            rescale (bool): Whether to rescale the variables.
+            savefig (bool): Whether to save the figures.
+            file_path (str): Path to save the figures.
+            hex_list (list): List the same length as the number of clusters of hex values for the colour scheme
+
+        Returns:
+            None
+        """
+        if hex_list == None:
+            self.cmap = plt.get_cmap('Set3')
+            self.cmap_discrete = self.cmap(np.linspace(0,1,self.model.n_clusters))
+        else:
+            self.cmap_discrete = hex_list
+
+        for v, var in enumerate(plot_vars):
+            f = plt.figure(figsize=(8, 3))
+            ax = plt.axes()
+            for i in range(self.model.n_clusters):
+                scale = self.norm_factor[var] if rescale else 1
+                xbar = scale * self.cluster_ds.class_TS.sel(var=var, vclass=i)
+                xstd = scale * self.cluster_ds.class_TS_std.sel(var=var, vclass=i)
+                ax.plot(self.cluster_ds.time, xbar, label=legend_names[i], c=self.cmap_discrete[i])
+                ax.fill_between(self.cluster_ds.time, xbar - xstd, xbar + xstd, alpha=0.1,
+                                facecolor=self.cmap_discrete[i])
+            ax.set_xlim([self.cluster_ds.time[0], self.cluster_ds.time[-1]])
+            bottom, top = ax.get_ylim()
+            if bottom < 0.0001:
+                ax.set_ylim(bottom = 0)
+            ax.tick_params(axis='x', labelrotation=45)
+            ax.legend(loc='upper right', ncol=2)
+            ax.set_title(plot_vars[var])
+            
+            if savefig is not None:
+                p = pathlib.Path(file_path)
+                plt.savefig(p.with_stem(f"{p.stem}_{plot_vars[var]}"))
+
     def plot_vars(self, plot_vars={'N3_n':'Nitrate','Phytoplankton':'Phyto', 'DOM':'DOM', 'POM':'POM'}, rescale=False, savefig=None, file_path='cluster_ts.png'):
         # for plotting cluster outputs when input variables are not time series
         self.line_colors = [p['color'] for p in plt.rcParams['axes.prop_cycle']]
