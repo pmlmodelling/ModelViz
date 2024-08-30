@@ -78,6 +78,10 @@ class ModelViz:
 
         Args:
             file_path (str): Path to the NetCDF file containing grid information.
+            var_name (str): If a data file is being used as a mask, this contains the name
+            of the variable to use for the mask. Otherwise, set to False.
+            crop_baltic (bool): Whether to crop the Baltic region of data, between lats 
+            55-60 and where longitude is greater than 10.
 
         Returns:
             None
@@ -149,6 +153,9 @@ class ModelViz:
     def preprocess(self, do_slice=True):
         """
         Preprocess the dataset, including variable selection and normalization.
+        
+        Args:
+            do_slice (bool) : Whether data needs trimming e.g. in the case of NEMO AMM7 model output the 10 outermost cells are usually discarded.
 
         Returns:
             None
@@ -173,44 +180,29 @@ class ModelViz:
             for v in self.cluster_vars:
                 self.ds[v] = (self.ds[v]-self.ds[v].mean())/self.ds[v].std()
 
-    def make_tsds(self, save=False, file_path='dataset.csv'):
+    def make_tsds(self, is_3D=False, save=False, file_path='dataset.csv'):
         """
         Create a time series dataset from the current dataset.
 
+        2D: (num of lat x num of lons, # time points x # variables)
+        3D: (num of lat x # lons, # time points, # variables)
+        
         Args:
             save (bool): Whether to save the time series dataset to a CSV file.
             file_path (str): Path to save the CSV file.
-
+            is_3D (bool): Whether to output a 2D or 3D dataset
+        
         Returns:
             None
         """
 	    # not sure why I currently need to mask again here - but I do
         ds_stack = self.ds.stack(Npts=('x', 'y')).where(self.mask.stack(Npts=('x','y')) == 1, drop=True)
         self.index = ds_stack.Npts
-        ds_stack = ds_stack.to_stacked_array('z', sample_dims=['Npts'])
-        self.tsds = pd.DataFrame(ds_stack.variable, index=self.index, columns=ds_stack.time)
-        if save:
-            self.tsds.to_csv(pathlib.Path(file_path))
-
-    def make_tsds_3D(self, save=False, file_path='dataset.csv'):
-        """
-        Create a 3D time series dataset from the current dataset with dimensions (number of timeseries, number of time points, number of variables)
-
-        Args:
-            save (bool): Whether to save the time series dataset to a CSV file.
-            file_path (str): Path to save the CSV file.
-
-        TODO: merge with make_tsds?
-
-        Returns:
-            None
-        """
-	    # not sure why I currently need to mask again here - but I do
-        ds_stack = self.ds.stack(Npts=('x', 'y')).where(self.mask.stack(Npts=('x','y')) == 1, drop=True)
-        self.index = ds_stack.Npts
-        ds_stack = ds_stack.transpose('Npts','time')
-        self.tsds = ds_stack.to_stacked_array('z', sample_dims=['Npts','time']).to_numpy()
-        #self.tsds = pd.DataFrame(ds_stack.variable, index=self.index, columns=ds_stack.time)
+        if is_3D == True:
+            self.tsds = ds_stack.to_stacked_array('var', sample_dims=['Npts','time']).transpose('Npts','time','var') 
+        else:
+            ds_stack = ds_stack.to_stacked_array('z', sample_dims=['Npts'])
+            self.tsds = pd.DataFrame(ds_stack.variable, index=self.index, columns=ds_stack.time)
         if save:
             self.tsds.to_csv(pathlib.Path(file_path))
 
@@ -238,6 +230,7 @@ class ModelViz:
             verbose (bool): Whether to print verbose output.
             save (bool): Whether to save the trained model to a file.
             file_path (str): Path to save the model file.
+            model_name (str): which clustering method to use. Current options are 'kmeans', 'kshape'
 
         Returns:
             None
@@ -350,11 +343,12 @@ class ModelViz:
 
     def plot_map(self, savefig=None, file_path='class_map.png', hex_list = None):
         """
-        Plot the class map on a map and save the figure.
+        Plot the spatial distribution of the clusters on a map and save the figure.
 
         Args:
             savefig (bool): Whether to save the figure.
             file_path (str): Path to save the figure.
+            hex_list (list): List the same length as the number of clusters of hex values for the colour scheme
 
         Returns:
             None
@@ -380,7 +374,7 @@ class ModelViz:
     def plot_ts(self, plot_vars={'N3_n': 'Nitrate', 'Phytoplankton': 'Phyto', 'DOM': 'DOM', 'POM': 'POM'}, rescale=False,
                 savefig=None, file_path='cluster_ts.png'):
         """
-        Plot time series for each cluster.
+        Plot time series of variables with a new plot for each cluster.
 
         Args:
             plot_vars (dict): Dictionary specifying variables to be plotted.
@@ -422,7 +416,7 @@ class ModelViz:
     def plot_ts_2(self, legend_names, plot_vars={'N3_n': 'Nitrate', 'Phytoplankton': 'Phyto', 'DOM': 'DOM', 'POM': 'POM'}, rescale=False,
                 savefig=None, file_path='cluster_ts.png', hex_list=None):
         """
-        Plot time series for each variable to compare differences in clusters.
+        Plot time series for each variable with a new figure for each variable to compare differences between clusters.
 
         Args:
             legend_names (list): List of labels for the different clusters e.g. ['1','2'..
@@ -464,7 +458,18 @@ class ModelViz:
                 plt.savefig(p.with_stem(f"{p.stem}_{plot_vars[var]}"))
 
     def plot_vars(self, plot_vars={'N3_n':'Nitrate','Phytoplankton':'Phyto', 'DOM':'DOM', 'POM':'POM'}, rescale=False, savefig=None, file_path='cluster_ts.png'):
-        # for plotting cluster outputs when input variables are not time series
+        """
+        Plot mean and stdev of each variable with each cluster in a different subplot.
+
+        Args:
+            plot_vars (dict): Dictionary specifying variables to be plotted.
+            rescale (bool): Whether to rescale the variables.
+            savefig (bool): Whether to save the figures.
+            file_path (str): Path to save the figures.
+
+        Returns:
+            None
+        """
         self.line_colors = [p['color'] for p in plt.rcParams['axes.prop_cycle']]
         self.cmap = plt.get_cmap('Set3')
         self.cmap_discrete = self.cmap(np.linspace(0,1,self.model.n_clusters))
@@ -494,8 +499,20 @@ class ModelViz:
             plt.savefig(p.with_stem(f"{p.stem}"), bbox_inches='tight')  
     
     def plot_vars_2(self, plot_vars={'N3_n':'Nitrate','Phytoplankton':'Phyto', 'DOM':'DOM', 'POM':'POM'}, rescale=False, savefig=None, file_path='cluster_ts.png', hex_list=None):
-        # for plotting cluster outputs when input variables are not time series
-        # plots all clusters in one figure so differences between variables are clearer.
+        """
+        Plot mean and stdev of each variable for each cluster.
+        Plots all clusters in one figure so differences between variable values are clearer.
+
+        Args:
+            plot_vars (dict): Dictionary specifying variables to be plotted.
+            rescale (bool): Whether to rescale the variables.
+            savefig (bool): Whether to save the figures.
+            file_path (str): Path to save the figures.
+            hex_list (list): List the same length as the number of clusters of hex values for the colour scheme
+
+        Returns:
+            None
+        """
         if hex_list == None:
             self.cmap = plt.get_cmap('Set3')
             self.cmap_discrete = self.cmap(np.linspace(0,1,self.model.n_clusters))
