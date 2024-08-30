@@ -192,6 +192,28 @@ class ModelViz:
         if save:
             self.tsds.to_csv(pathlib.Path(file_path))
 
+    def make_tsds_3D(self, save=False, file_path='dataset.csv'):
+        """
+        Create a 3D time series dataset from the current dataset with dimensions (number of timeseries, number of time points, number of variables)
+
+        Args:
+            save (bool): Whether to save the time series dataset to a CSV file.
+            file_path (str): Path to save the CSV file.
+
+        TODO: merge with make_tsds?
+
+        Returns:
+            None
+        """
+	    # not sure why I currently need to mask again here - but I do
+        ds_stack = self.ds.stack(Npts=('x', 'y')).where(self.mask.stack(Npts=('x','y')) == 1, drop=True)
+        self.index = ds_stack.Npts
+        ds_stack = ds_stack.transpose('Npts','time')
+        self.tsds = ds_stack.to_stacked_array('z', sample_dims=['Npts','time']).to_numpy()
+        #self.tsds = pd.DataFrame(ds_stack.variable, index=self.index, columns=ds_stack.time)
+        if save:
+            self.tsds.to_csv(pathlib.Path(file_path))
+
     def load_tsds(self, file_path):
         """
         Load a time series dataset from a CSV file.
