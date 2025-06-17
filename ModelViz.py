@@ -9,8 +9,6 @@ from cartopy.feature import NaturalEarthFeature
 import numpy as np
 import pandas as pd
 import pathlib
-import tslearn as ts
-import tslearn.clustering
 import glob
 from sklearn.cluster import KMeans
 import matplotlib.gridspec as gridspec
@@ -178,6 +176,7 @@ class ModelViz:
         if self.norm == 'stdev':
             # Global normalisation by magnitude and variability for point data
             for v in self.cluster_vars:
+                #self.ds[v] = np.log(self.ds[v])
                 self.ds[v] = (self.ds[v]-self.ds[v].mean())/self.ds[v].std()
 
     def make_tsds(self, is_3D=False, save=False, file_path='dataset.csv'):
@@ -199,10 +198,12 @@ class ModelViz:
         ds_stack = self.ds.stack(Npts=('x', 'y')).where(self.mask.stack(Npts=('x','y')) == 1, drop=True)
         self.index = ds_stack.Npts
         if is_3D == True:
-            self.tsds = ds_stack.to_stacked_array('var', sample_dims=['Npts','time']).transpose('Npts','time','var') 
+            self.tsds = ds_stack.to_stacked_array('var', sample_dims=['Npts','time']).transpose('Npts','time','var')
+            self.is_3D = True
         else:
             ds_stack = ds_stack.to_stacked_array('z', sample_dims=['Npts'])
             self.tsds = pd.DataFrame(ds_stack.variable, index=self.index, columns=ds_stack.time)
+            self.is_3D = False
         if save:
             self.tsds.to_csv(pathlib.Path(file_path))
 
@@ -219,7 +220,7 @@ class ModelViz:
         self.tsds = pd.read_csv(file_path)
         self.index = self.tsds.index
 
-    def train(self, tsds=None, n_clusters=6, method='quantile', verbose=True, save=True, file_path='model.ks', model_name='kshape'):
+    def train(self, tsds=None, n_clusters=6, method='quantile', verbose=True, save=True, file_path='model.ks', model_name='kmeans'):
         """
         Train the clustering model using either KShape (for time series data) or KMeans (for single time point data).
 
@@ -230,7 +231,7 @@ class ModelViz:
             verbose (bool): Whether to print verbose output.
             save (bool): Whether to save the trained model to a file.
             file_path (str): Path to save the model file.
-            model_name (str): which clustering method to use. Current options are 'kmeans', 'kshape'
+            model_name (str): which clustering method to use. Current options are 'kmeans'.
 
         Returns:
             None
@@ -240,25 +241,6 @@ class ModelViz:
         self.n_clusters = n_clusters
         if model_name == 'kmeans':
             self.model = KMeans(init="k-means++", n_clusters=n_clusters, n_init=self.n_init, random_state=self.seed)
-        if model_name == 'kshape':
-            if method == 'quantile':
-                print('Initialising using quantiles')
-                quantiles = np.arange(1 / (2 * n_clusters), 1,1 / n_clusters)
-                self.model = ts.clustering.KShape(n_clusters=n_clusters,
-                                           verbose=verbose,
-                                           init=tsds.quantile(q=quantiles).values[:, :, np.newaxis],
-                                           n_init = 1
-                                           )
-            elif method == 'random':
-                print('Initialising using random, seed = ', self.seed)
-                self.model = ts.clustering.KShape(n_clusters=n_clusters,
-                                   verbose=verbose,
-                                   random_state=self.seed,
-                                   n_init = self.n_init
-                                   )
-            else:
-                print('Unrecognised initialisation method')
-                return
         self.model.fit(tsds)
         if save:
             # this does not work with kmeans
