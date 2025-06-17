@@ -6,6 +6,7 @@ import numpy as np
 import warnings
 import tqdm
 import preprocess_amm7_functions as prep
+import nctoolkit as nc
 
 if __name__=="__main__":
 
@@ -19,27 +20,19 @@ if __name__=="__main__":
     year_beg = 2000
     year_end = 2004
 
-    depth = 'surface'
-    classification = 'physics'
+    # for this script, should be an number - integer or float
+    depth = 10
+    classification = 'biogeo'
    
     # Variables to train on
-   
     vars = prep.cluster_vars(classification)
-
-    # Map of names
-    names={'votemper':'SST','vosaline':'SSS','N4_n':'Ammonium','N5_s':'Silicon','O2_o':'Oxygen','B1_c':'Bacteria','O3_c':'DIC',\
-            'O3_TA':'Alkalinity','Zooplankton':'Zooplankton','DOM':'DOM','POM':'POM','Phytoplankton':'Phytoplankton','N1_p':'Phosphorous','fish_c_tot':'Fish biomass',\
-            'fish_pelagic_size_spectrum_slope':'fish_size_spectrum_slope'} #,'N3_n':'Nitrogen',
 
     print('Loading data')
     #Load Data, combine some variables
     xsl = slice(15,-15)
     ysl = slice(15,-15)
 
-    if depth == 'surface':
-        input_path = '/data/thaumus2/scratch/hpo/COMFORT/baseline_archerfull/200[0-4]/**/'
-        full_filenames = input_path+'amm7_1d_*_ptrc_T.nc'
-    elif classification == 'biogeo':
+    if classification == 'biogeo':
         input_path = '/data/proteus1/scratch/rmi/classifications/COMFORT_data/'
         full_filenames = input_path+'amm7_mean_2000-2004_all_depths_biogeo.nc'
     elif classification == 'ecosys':
