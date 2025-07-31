@@ -36,12 +36,17 @@ class ModelViz:
         self.cluster_vars = ['N1_p', 'N3_n', 'N4_n', 'N5_s', 'O2_o', 'B1_c', 'O3_c', 'O3_TA', 'O3_pH', 'Phytoplankton',
                              'Zooplankton', 'DOM', 'POM']
         self.time_var = 'time_counter'
+        self.x_var = 'x'
+        self.y_var = 'y'
+        self.lat_name = 'nav_lat'
+        self.lon_name = 'nav_lon'
         self.x_strip = slice(10, -10)
         self.y_strip = slice(10, -10)
         self.n_clusters = 6
         self.norm = True # other options None and stdev
         self.seed = 950
         self.n_init = 3
+
 
     def load_data(self, file_path):
         """
@@ -72,7 +77,7 @@ class ModelViz:
         if 'deptht' in self.ds.dims:
             self.ds = self.ds.squeeze(dim=['deptht'])
 
-    def load_grid(self, file_path, var_name = False, crop_baltic = True):
+    def load_grid(self, file_path, var_name = False, crop_baltic = True, do_slice=True):
         """
         Load grid information from a NetCDF file.
 
@@ -86,12 +91,20 @@ class ModelViz:
         Returns:
             None
         """
-        self.grd = xr.open_dataset(file_path).isel(x=self.x_strip, y=self.y_strip)
+        self.grd = xr.open_dataset(file_path)
         if 't' in self.grd.dims:
             if len(self.grd['t'])>1:
                 self.grd = self.grd.isel(t=0)
             else:
                 self.grd = self.grd.squeeze(dim=['t'])
+        if self.x_var in self.grd.dims:
+            if self.x_var != "x":
+                self.grd = self.grd.rename({self.x_var:'x'})
+        if self.y_var in self.grd.dims:
+            if self.y_var != "y":
+                self.grd = self.grd.rename({self.y_var:'y'})
+        if do_slice == True:
+            self.grd = self.grd.isel(x=self.x_strip, y=self.y_strip)
         self.dim_x = self.grd.x
         self.dim_y = self.grd.y
         if var_name != False:
@@ -168,6 +181,12 @@ class ModelViz:
                 self.ds = self.ds.rename({self.time_var:'time'})
         else:
             self.ds = self.ds.expand_dims(dim = {"time":np.asarray([1])})
+        if self.x_var in self.ds.dims:
+            if self.x_var != "x":
+                self.ds = self.ds.rename({self.x_var:'x'})
+        if self.y_var in self.ds.dims:
+            if self.y_var != "y":
+                self.ds = self.ds.rename({self.y_var:'y'})
         self.ds = self.ds.where(self.mask==1) #,drop=True)
         if self.norm in [True, 'magnitude']:
 	        # Global normalisation by magnitude of variable for all data
@@ -199,7 +218,8 @@ class ModelViz:
         ds_stack = self.ds.stack(Npts=('x', 'y')).where(self.mask.stack(Npts=('x','y')) == 1, drop=True)
         self.index = ds_stack.Npts
         if is_3D == True:
-            self.tsds = ds_stack.to_stacked_array('var', sample_dims=['Npts','time']).transpose('Npts','time','var') 
+            self.tsds = ds_stack.to_stacked_array('var', sample_dims=['Npts','time']).transpose('Npts','time','var')
+            self.tsds = self.tsds.squeeze(dim='var')
         else:
             ds_stack = ds_stack.to_stacked_array('z', sample_dims=['Npts'])
             self.tsds = pd.DataFrame(ds_stack.variable, index=self.index, columns=ds_stack.time)
@@ -246,7 +266,7 @@ class ModelViz:
                 quantiles = np.arange(1 / (2 * n_clusters), 1,1 / n_clusters)
                 self.model = ts.clustering.KShape(n_clusters=n_clusters,
                                            verbose=verbose,
-                                           init=tsds.quantile(q=quantiles).values[:, :, np.newaxis],
+                                           init=tsds.quantile(q=quantiles).values[:, np.newaxis],
                                            n_init = 1
                                            )
             elif method == 'random':
@@ -294,6 +314,7 @@ class ModelViz:
             for idx in np.setdiff1d(self.dim_y, predictions.index.get_level_values(1).unique()):
                 predictions.loc[(0, idx), :] = np.nan
         self.predictions = predictions.to_xarray()
+        self.predictions = self.predictions.sortby(self.predictions.x).sortby(self.predictions.y)
 
     def get_cluster_info(self, save=False, file_path='Predicted_TS.nc'):
         """
@@ -308,8 +329,8 @@ class ModelViz:
         """
         w = self.predictions.Clusters
         self.cluster_ds = xr.Dataset(data_vars={'class_map': (['y', 'x'], w.values.T)},
-                                     coords={'lon': (['y', 'x'], self.grd.nav_lon.values),
-                                             'lat': (['y', 'x'], self.grd.nav_lat.values)})
+                                     coords={'lon': (['y', 'x'], self.grd[self.lon_name].values),
+                                             'lat': (['y', 'x'], self.grd[self.lat_name].values)})
 
         self.cluster_ds = self.cluster_ds.assign_coords({'var': self.cluster_vars,
                                                          'vclass': np.arange(self.model.n_clusters),
